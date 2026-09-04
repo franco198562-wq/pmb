@@ -1,162 +1,373 @@
 // ==============================
-// Staff Docs – localStorage app
+// Staff Documentation Portal
 // Access code: PMB123
-// Features: formatting toolbar + auto-save
+// Departments → Books structure
 // ==============================
 
 const ACCESS_CODE = 'PMB123';
-const STORAGE_KEY = 'staff_docs_v1';
-const AUTH_KEY = 'staff_docs_auth';
-const AUTO_SAVE_DELAY = 1500; // ms after last change
+const STORAGE_KEY = 'staff_portal_v2';
+const AUTH_KEY = 'staff_portal_auth';
+const AUTO_SAVE_DELAY = 1500;
 
 // ---------- State ----------
-let docs = [];
-let currentId = null;
+let data = { departments: [], books: [] };
+let currentDeptId = null;
+let currentBookId = null;
 let isEditing = false;
 let isLoggedIn = false;
-let draft = null; // { title, content } while editing
 let autoSaveTimer = null;
-let lastSavedSnapshot = null; // to avoid unnecessary saves
+let lastSavedSnapshot = null;
+let pendingDelete = null;
+let editingDeptId = null;
+let editingBookId = null;
+let tempDeptImage = null;
+let tempBookCover = null;
 
 // ---------- DOM ----------
-const $ = (sel) => document.querySelector(sel);
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+
 const loginBtn = $('#loginBtn');
 const logoutBtn = $('#logoutBtn');
-const newDocBtn = $('#newDocBtn');
-const docList = $('#docList');
-const emptyState = $('#emptyState');
-const welcomeView = $('#welcomeView');
-const docView = $('#docView');
-const docTitle = $('#docTitle');
-const docMeta = $('#docMeta');
-const docContent = $('#docContent');
-const editBtn = $('#editBtn');
-const saveBtn = $('#saveBtn');
-const cancelBtn = $('#cancelBtn');
-const deleteBtn = $('#deleteBtn');
+const newDeptBtn = $('#newDeptBtn');
+const newBookBtn = $('#newBookBtn');
+const editDeptBtn = $('#editDeptBtn');
+const editBookBtn = $('#editBookBtn');
+const deleteBookBtn = $('#deleteBookBtn');
+const backToDepts = $('#backToDepts');
+const backToDept = $('#backToDept');
+const logoBtn = $('#logoBtn');
+
+const viewDepartments = $('#viewDepartments');
+const viewDeptDetail = $('#viewDeptDetail');
+const viewBook = $('#viewBook');
+const deptGrid = $('#deptGrid');
+const bookGrid = $('#bookGrid');
+const deptEmpty = $('#deptEmpty');
+const bookEmpty = $('#bookEmpty');
+const deptTitle = $('#deptTitle');
+const deptDesc = $('#deptDesc');
+const deptBreadcrumb = $('#deptBreadcrumb');
+const bookBreadcrumb = $('#bookBreadcrumb');
+const bookTitleInput = $('#bookTitleInput');
+const bookDescDisplay = $('#bookDescDisplay');
+const bookContent = $('#bookContent');
 const formatBar = $('#formatBar');
 const saveStatus = $('#saveStatus');
+const metaBox = $('#metaBox');
+const metaContent = $('#metaContent');
+
+const sidebarHome = $('#sidebarHome');
+const sidebarDept = $('#sidebarDept');
+const sidebarBook = $('#sidebarBook');
+
+const globalSearch = $('#globalSearch');
+const searchResults = $('#searchResults');
+
 const loginModal = $('#loginModal');
 const codeInput = $('#codeInput');
 const loginError = $('#loginError');
-const submitLoginBtn = $('#submitLoginBtn');
-const cancelLoginBtn = $('#cancelLoginBtn');
+const deptModal = $('#deptModal');
+const deptModalTitle = $('#deptModalTitle');
+const deptNameInput = $('#deptNameInput');
+const deptDescInput = $('#deptDescInput');
+const deptImageInput = $('#deptImageInput');
+const deptImagePreview = $('#deptImagePreview');
+const bookModal = $('#bookModal');
+const bookModalTitle = $('#bookModalTitle');
+const bookNameInput = $('#bookNameInput');
+const bookDescInput = $('#bookDescInput');
+const bookCoverInput = $('#bookCoverInput');
+const bookCoverPreview = $('#bookCoverPreview');
 const deleteModal = $('#deleteModal');
-const confirmDeleteBtn = $('#confirmDeleteBtn');
-const cancelDeleteBtn = $('#cancelDeleteBtn');
+const deleteMessage = $('#deleteMessage');
+const imageInput = $('#imageInput');
 
 // ---------- Storage ----------
-function loadDocs() {
+function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    docs = raw ? JSON.parse(raw) : [];
+    data = raw ? JSON.parse(raw) : { departments: [], books: [] };
+    if (!data.departments) data.departments = [];
+    if (!data.books) data.books = [];
   } catch {
-    docs = [];
+    data = { departments: [], books: [] };
   }
 }
 
-function saveDocs() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(docs));
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
 function loadAuth() {
   isLoggedIn = localStorage.getItem(AUTH_KEY) === '1';
 }
 
-function setAuth(value) {
-  isLoggedIn = value;
-  if (value) {
-    localStorage.setItem(AUTH_KEY, '1');
-  } else {
-    localStorage.removeItem(AUTH_KEY);
-  }
+function setAuth(v) {
+  isLoggedIn = v;
+  if (v) localStorage.setItem(AUTH_KEY, '1');
+  else localStorage.removeItem(AUTH_KEY);
 }
 
 // ---------- Helpers ----------
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
 function formatDate(ts) {
   return new Date(ts).toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit'
   });
 }
 
-function generateId() {
-  return 'doc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
-
-function getCurrentDoc() {
-  return docs.find((d) => d.id === currentId) || null;
-}
-
 function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
+function getDept(id) {
+  return data.departments.find(d => d.id === id);
+}
+
+function getBook(id) {
+  return data.books.find(b => b.id === id);
+}
+
+function booksInDept(deptId) {
+  return data.books.filter(b => b.departmentId === deptId)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// ---------- Auth UI ----------
+function renderAuth() {
+  if (isLoggedIn) {
+    loginBtn.classList.add('hidden');
+    logoutBtn.classList.remove('hidden');
+    newDeptBtn.classList.remove('hidden');
+    newBookBtn.classList.remove('hidden');
+    editDeptBtn.classList.remove('hidden');
+    editBookBtn.classList.remove('hidden');
+    deleteBookBtn.classList.remove('hidden');
+  } else {
+    loginBtn.classList.remove('hidden');
+    logoutBtn.classList.add('hidden');
+    newDeptBtn.classList.add('hidden');
+    newBookBtn.classList.add('hidden');
+    editDeptBtn.classList.add('hidden');
+    editBookBtn.classList.add('hidden');
+    deleteBookBtn.classList.add('hidden');
+  }
+}
+
+// ---------- Views ----------
+function showView(name) {
+  viewDepartments.classList.add('hidden');
+  viewDeptDetail.classList.add('hidden');
+  viewBook.classList.add('hidden');
+  sidebarHome.classList.add('hidden');
+  sidebarDept.classList.add('hidden');
+  sidebarBook.classList.add('hidden');
+  metaBox.classList.add('hidden');
+
+  if (name === 'departments') {
+    viewDepartments.classList.remove('hidden');
+    sidebarHome.classList.remove('hidden');
+    currentDeptId = null;
+    currentBookId = null;
+    isEditing = false;
+    renderDepartments();
+  } else if (name === 'dept') {
+    viewDeptDetail.classList.remove('hidden');
+    sidebarDept.classList.remove('hidden');
+    currentBookId = null;
+    isEditing = false;
+    renderDeptDetail();
+  } else if (name === 'book') {
+    viewBook.classList.remove('hidden');
+    sidebarBook.classList.remove('hidden');
+    renderBookView();
+  }
+  renderAuth();
+}
+
+function renderDepartments() {
+  deptGrid.innerHTML = '';
+  if (data.departments.length === 0) {
+    deptEmpty.classList.remove('hidden');
+    return;
+  }
+  deptEmpty.classList.add('hidden');
+
+  const sorted = [...data.departments].sort((a, b) => a.name.localeCompare(b.name));
+  sorted.forEach(dept => {
+    const count = booksInDept(dept.id).length;
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-cover">
+        ${dept.image
+          ? `<img src="${dept.image}" alt="">`
+          : `<span class="placeholder">📁</span>`}
+      </div>
+      <div class="card-body">
+        <div class="card-title">${escapeHtml(dept.name)}</div>
+        <div class="card-desc">${escapeHtml(dept.description || '')}</div>
+        <div class="card-meta">${count} book${count !== 1 ? 's' : ''}</div>
+      </div>
+    `;
+    card.addEventListener('click', () => {
+      currentDeptId = dept.id;
+      showView('dept');
+    });
+    deptGrid.appendChild(card);
+  });
+}
+
+function renderDeptDetail() {
+  const dept = getDept(currentDeptId);
+  if (!dept) { showView('departments'); return; }
+
+  deptTitle.textContent = dept.name;
+  deptDesc.textContent = dept.description || '';
+  deptBreadcrumb.innerHTML = `
+    <span data-go="departments">Departments</span>
+    <span class="sep">›</span>
+    <span class="current">${escapeHtml(dept.name)}</span>
+  `;
+  deptBreadcrumb.querySelector('[data-go]')?.addEventListener('click', () => showView('departments'));
+
+  metaBox.classList.remove('hidden');
+  metaContent.innerHTML = `
+    Created ${formatDate(dept.createdAt)}<br>
+    Updated ${formatDate(dept.updatedAt)}
+  `;
+
+  const books = booksInDept(currentDeptId);
+  bookGrid.innerHTML = '';
+  if (books.length === 0) {
+    bookEmpty.classList.remove('hidden');
+    return;
+  }
+  bookEmpty.classList.add('hidden');
+
+  books.forEach(book => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-cover">
+        ${book.cover
+          ? `<img src="${book.cover}" alt="">`
+          : `<span class="placeholder">📄</span>`}
+      </div>
+      <div class="card-body">
+        <div class="card-title">${escapeHtml(book.title)}</div>
+        <div class="card-desc">${escapeHtml(book.description || '')}</div>
+        <div class="card-meta">Updated ${formatDate(book.updatedAt)}</div>
+      </div>
+    `;
+    card.addEventListener('click', () => {
+      currentBookId = book.id;
+      showView('book');
+    });
+    bookGrid.appendChild(card);
+  });
+}
+
+function renderBookView() {
+  const book = getBook(currentBookId);
+  const dept = getDept(book?.departmentId);
+  if (!book || !dept) { showView('departments'); return; }
+
+  bookBreadcrumb.innerHTML = `
+    <span data-go="departments">Departments</span>
+    <span class="sep">›</span>
+    <span data-go="dept">${escapeHtml(dept.name)}</span>
+    <span class="sep">›</span>
+    <span class="current">${escapeHtml(book.title)}</span>
+  `;
+  bookBreadcrumb.querySelectorAll('[data-go]').forEach(el => {
+    el.addEventListener('click', () => {
+      if (el.dataset.go === 'departments') showView('departments');
+      else if (el.dataset.go === 'dept') {
+        currentDeptId = dept.id;
+        showView('dept');
+      }
+    });
+  });
+
+  bookTitleInput.value = book.title;
+  bookDescDisplay.textContent = book.description || '';
+  bookContent.innerHTML = book.content || '';
+
+  if (isEditing && isLoggedIn) {
+    bookTitleInput.removeAttribute('readonly');
+    bookContent.contentEditable = 'true';
+    formatBar.classList.remove('hidden');
+  } else {
+    bookTitleInput.setAttribute('readonly', 'true');
+    bookContent.contentEditable = 'false';
+    formatBar.classList.add('hidden');
+    hideSaveStatus();
+  }
+
+  metaBox.classList.remove('hidden');
+  metaContent.innerHTML = `
+    Created ${formatDate(book.createdAt)}<br>
+    Updated ${formatDate(book.updatedAt)}
+  `;
 }
 
 // ---------- Auto-save ----------
-function showSaveStatus(text, className = '') {
+function showSaveStatus(text, cls = '') {
   saveStatus.textContent = text;
-  saveStatus.className = 'save-status ' + className;
+  saveStatus.className = 'save-status ' + cls;
   saveStatus.classList.remove('hidden');
 }
-
 function hideSaveStatus() {
   saveStatus.classList.add('hidden');
 }
 
-function getCurrentSnapshot() {
-  return {
-    title: docTitle.value.trim() || 'Untitled',
-    content: docContent.innerHTML,
-  };
-}
-
 function scheduleAutoSave() {
-  if (!isEditing || !isLoggedIn) return;
-
+  if (!isEditing || !isLoggedIn || !currentBookId) return;
   clearTimeout(autoSaveTimer);
   showSaveStatus('Saving…', 'saving');
-
-  autoSaveTimer = setTimeout(() => {
-    performAutoSave();
-  }, AUTO_SAVE_DELAY);
+  autoSaveTimer = setTimeout(performAutoSave, AUTO_SAVE_DELAY);
 }
 
 function performAutoSave() {
-  if (!isEditing || !currentId || !isLoggedIn) return;
+  if (!isEditing || !currentBookId || !isLoggedIn) return;
+  const book = getBook(currentBookId);
+  if (!book) return;
 
-  const snapshot = getCurrentSnapshot();
-  const snapshotStr = JSON.stringify(snapshot);
-
-  // Skip if nothing changed
-  if (snapshotStr === lastSavedSnapshot) {
+  const title = bookTitleInput.value.trim() || 'Untitled';
+  const content = bookContent.innerHTML;
+  const snap = JSON.stringify({ title, content });
+  if (snap === lastSavedSnapshot) {
     showSaveStatus('Saved', 'saved');
     setTimeout(hideSaveStatus, 2000);
     return;
   }
 
-  const doc = getCurrentDoc();
-  if (!doc) return;
-
-  doc.title = snapshot.title;
-  doc.content = snapshot.content;
-  doc.updatedAt = Date.now();
-
-  saveDocs();
-  lastSavedSnapshot = snapshotStr;
-
-  // Keep draft in sync
-  draft = { ...snapshot };
-
-  docMeta.textContent = `Last updated: ${formatDate(doc.updatedAt)}`;
-  renderList(); // update title in sidebar
-
+  book.title = title;
+  book.content = content;
+  book.updatedAt = Date.now();
+  saveData();
+  lastSavedSnapshot = snap;
   showSaveStatus('Saved', 'saved');
   setTimeout(hideSaveStatus, 2500);
+  const cur = bookBreadcrumb.querySelector('.current');
+  if (cur) cur.textContent = title;
 }
 
 function forceSave() {
@@ -165,389 +376,379 @@ function forceSave() {
 }
 
 // ---------- Formatting ----------
-function execFormat(command, value = null) {
-  // Focus the editor first so the command applies to the selection
-  docContent.focus();
-  try {
-    document.execCommand(command, false, value);
-  } catch (e) {
-    console.warn('Format command failed:', command, e);
-  }
-  // Trigger auto-save after formatting
+function execFormat(cmd, value = null) {
+  bookContent.focus();
+  try { document.execCommand(cmd, false, value); } catch (e) {}
   scheduleAutoSave();
-  updateFormatButtonStates();
 }
 
-function updateFormatButtonStates() {
-  if (!isEditing) return;
-
-  document.querySelectorAll('.format-btn').forEach((btn) => {
-    const cmd = btn.dataset.cmd;
-    let isActive = false;
-
-    try {
-      if (cmd === 'formatBlock') {
-        const value = btn.dataset.value;
-        const block = document.queryCommandValue('formatBlock').toLowerCase();
-        isActive = block === value || block === value.toUpperCase();
-      } else if (['bold', 'italic', 'underline', 'strikeThrough', 'insertUnorderedList', 'insertOrderedList', 'justifyLeft', 'justifyCenter', 'justifyRight'].includes(cmd)) {
-        isActive = document.queryCommandState(cmd);
-      }
-    } catch {
-      // ignore
-    }
-
-    btn.classList.toggle('active', isActive);
-  });
-}
-
-// ---------- Render ----------
-function renderAuth() {
-  if (isLoggedIn) {
-    loginBtn.classList.add('hidden');
-    logoutBtn.classList.remove('hidden');
-    newDocBtn.classList.remove('hidden');
-  } else {
-    loginBtn.classList.remove('hidden');
-    logoutBtn.classList.add('hidden');
-    newDocBtn.classList.add('hidden');
+// ---------- Image insert ----------
+async function insertImage(file) {
+  if (!file || !isEditing) return;
+  try {
+    const b64 = await fileToBase64(file);
+    bookContent.focus();
+    document.execCommand('insertHTML', false, `<img src="${b64}" alt="Image">`);
+    scheduleAutoSave();
+  } catch (e) {
+    alert('Could not insert image.');
   }
-  updateActionButtons();
 }
 
-function updateActionButtons() {
-  const hasDoc = !!currentId;
+// ---------- Department CRUD ----------
+function openDeptModal(id = null) {
+  editingDeptId = id;
+  tempDeptImage = null;
+  deptImagePreview.classList.add('hidden');
+  deptImagePreview.innerHTML = '';
+  deptImageInput.value = '';
 
-  if (!hasDoc || isEditing) {
-    editBtn.classList.add('hidden');
-    deleteBtn.classList.add('hidden');
+  if (id) {
+    const d = getDept(id);
+    deptModalTitle.textContent = 'Edit Department';
+    deptNameInput.value = d.name;
+    deptDescInput.value = d.description || '';
+    if (d.image) {
+      tempDeptImage = d.image;
+      deptImagePreview.innerHTML = `<img src="${d.image}">`;
+      deptImagePreview.classList.remove('hidden');
+    }
   } else {
-    if (isLoggedIn) {
-      editBtn.classList.remove('hidden');
-      deleteBtn.classList.remove('hidden');
+    deptModalTitle.textContent = 'New Department';
+    deptNameInput.value = '';
+    deptDescInput.value = '';
+  }
+  deptModal.classList.remove('hidden');
+  setTimeout(() => deptNameInput.focus(), 50);
+}
+
+function saveDepartment() {
+  const name = deptNameInput.value.trim();
+  if (!name) { deptNameInput.focus(); return; }
+
+  if (editingDeptId) {
+    const d = getDept(editingDeptId);
+    d.name = name;
+    d.description = deptDescInput.value.trim();
+    if (tempDeptImage !== null) d.image = tempDeptImage;
+    d.updatedAt = Date.now();
+  } else {
+    data.departments.push({
+      id: uid(),
+      name,
+      description: deptDescInput.value.trim(),
+      image: tempDeptImage || null,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    });
+  }
+  saveData();
+  deptModal.classList.add('hidden');
+  if (currentDeptId && editingDeptId === currentDeptId) renderDeptDetail();
+  else showView('departments');
+}
+
+// ---------- Book CRUD ----------
+function openBookModal(id = null) {
+  editingBookId = id;
+  tempBookCover = null;
+  bookCoverPreview.classList.add('hidden');
+  bookCoverPreview.innerHTML = '';
+  bookCoverInput.value = '';
+
+  if (id) {
+    const b = getBook(id);
+    bookModalTitle.textContent = 'Edit Book';
+    bookNameInput.value = b.title;
+    bookDescInput.value = b.description || '';
+    if (b.cover) {
+      tempBookCover = b.cover;
+      bookCoverPreview.innerHTML = `<img src="${b.cover}">`;
+      bookCoverPreview.classList.remove('hidden');
+    }
+  } else {
+    bookModalTitle.textContent = 'New Book';
+    bookNameInput.value = '';
+    bookDescInput.value = '';
+  }
+  bookModal.classList.remove('hidden');
+  setTimeout(() => bookNameInput.focus(), 50);
+}
+
+function saveBookMeta() {
+  const title = bookNameInput.value.trim();
+  if (!title) { bookNameInput.focus(); return; }
+
+  if (editingBookId) {
+    const b = getBook(editingBookId);
+    b.title = title;
+    b.description = bookDescInput.value.trim();
+    if (tempBookCover !== null) b.cover = tempBookCover;
+    b.updatedAt = Date.now();
+    saveData();
+    bookModal.classList.add('hidden');
+    if (currentBookId === editingBookId) {
+      bookTitleInput.value = b.title;
+      bookDescDisplay.textContent = b.description || '';
+      renderBookView();
     } else {
-      editBtn.classList.add('hidden');
-      deleteBtn.classList.add('hidden');
+      renderDeptDetail();
     }
-  }
-
-  if (isEditing) {
-    saveBtn.classList.remove('hidden');
-    cancelBtn.classList.remove('hidden');
-    formatBar.classList.remove('hidden');
   } else {
-    saveBtn.classList.add('hidden');
-    cancelBtn.classList.add('hidden');
-    formatBar.classList.add('hidden');
-    hideSaveStatus();
+    const newBook = {
+      id: uid(),
+      departmentId: currentDeptId,
+      title,
+      description: bookDescInput.value.trim(),
+      cover: tempBookCover || null,
+      content: '<p></p>',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    data.books.push(newBook);
+    saveData();
+    bookModal.classList.add('hidden');
+    currentBookId = newBook.id;
+    isEditing = true;
+    lastSavedSnapshot = JSON.stringify({ title: newBook.title, content: newBook.content });
+    showView('book');
   }
 }
 
-function renderList() {
-  docList.innerHTML = '';
-  if (docs.length === 0) {
-    emptyState.classList.remove('hidden');
-    return;
-  }
-  emptyState.classList.add('hidden');
-
-  const sorted = [...docs].sort((a, b) => b.updatedAt - a.updatedAt);
-
-  sorted.forEach((doc) => {
-    const item = document.createElement('div');
-    item.className = 'doc-item' + (doc.id === currentId ? ' active' : '');
-    item.dataset.id = doc.id;
-    item.innerHTML = `
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-        <polyline points="14 2 14 8 20 8"></polyline>
-      </svg>
-      <span class="doc-item-title">${escapeHtml(doc.title || 'Untitled')}</span>
-    `;
-    item.addEventListener('click', () => selectDoc(doc.id));
-    docList.appendChild(item);
-  });
-}
-
-function renderDoc() {
-  const doc = getCurrentDoc();
-  if (!doc) {
-    welcomeView.classList.remove('hidden');
-    docView.classList.add('hidden');
-    return;
-  }
-
-  welcomeView.classList.add('hidden');
-  docView.classList.remove('hidden');
-
-  if (isEditing && draft) {
-    docTitle.value = draft.title;
-    docContent.innerHTML = draft.content;
-    docTitle.removeAttribute('readonly');
-    docContent.contentEditable = 'true';
-  } else {
-    docTitle.value = doc.title || 'Untitled';
-    docContent.innerHTML = doc.content || '';
-    docTitle.setAttribute('readonly', 'true');
-    docContent.contentEditable = 'false';
-  }
-
-  docMeta.textContent = `Last updated: ${formatDate(doc.updatedAt)}`;
-  updateActionButtons();
-}
-
-// ---------- Actions ----------
-function selectDoc(id) {
-  if (isEditing) {
-    // Auto-save before switching
-    forceSave();
-    isEditing = false;
-    draft = null;
-    clearTimeout(autoSaveTimer);
-  }
-  currentId = id;
-  lastSavedSnapshot = null;
-  renderList();
-  renderDoc();
-}
-
-function startEdit() {
-  const doc = getCurrentDoc();
-  if (!doc || !isLoggedIn) return;
-
+function startEditBook() {
+  if (!isLoggedIn || !currentBookId) return;
   isEditing = true;
-  draft = {
-    title: doc.title,
-    content: doc.content,
-  };
-  lastSavedSnapshot = JSON.stringify(draft);
-  renderDoc();
-  docTitle.focus();
+  const book = getBook(currentBookId);
+  lastSavedSnapshot = JSON.stringify({ title: book.title, content: book.content });
+  renderBookView();
+  bookTitleInput.focus();
 }
 
-function cancelEdit() {
-  clearTimeout(autoSaveTimer);
-  isEditing = false;
-  draft = null;
-  lastSavedSnapshot = null;
-  hideSaveStatus();
-  renderDoc();
-}
-
-function saveEdit() {
-  // Manual save button – force immediate save and exit edit mode
-  forceSave();
-  isEditing = false;
-  draft = null;
-  renderDoc();
-}
-
-function createDoc() {
-  if (!isLoggedIn) return;
-
-  const newDoc = {
-    id: generateId(),
-    title: 'New Document',
-    content: '<p></p>',
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  };
-  docs.push(newDoc);
-  saveDocs();
-  currentId = newDoc.id;
-  isEditing = true;
-  draft = { title: newDoc.title, content: newDoc.content };
-  lastSavedSnapshot = JSON.stringify(draft);
-  renderList();
-  renderDoc();
-  docTitle.focus();
-  docTitle.select();
-}
-
-function deleteCurrentDoc() {
-  if (!currentId || !isLoggedIn) return;
-  clearTimeout(autoSaveTimer);
-  docs = docs.filter((d) => d.id !== currentId);
-  saveDocs();
-  currentId = null;
-  isEditing = false;
-  draft = null;
-  lastSavedSnapshot = null;
-  renderList();
-  renderDoc();
-  closeDeleteModal();
-}
-
-// ---------- Login ----------
-function openLoginModal() {
-  loginModal.classList.remove('hidden');
-  loginError.classList.add('hidden');
-  codeInput.value = '';
-  setTimeout(() => codeInput.focus(), 50);
-}
-
-function closeLoginModal() {
-  loginModal.classList.add('hidden');
-}
-
-function submitLogin() {
-  const code = codeInput.value.trim();
-  if (code === ACCESS_CODE) {
-    setAuth(true);
-    closeLoginModal();
-    renderAuth();
-    renderList();
-    renderDoc();
+// ---------- Delete ----------
+function requestDelete(type, id) {
+  pendingDelete = { type, id };
+  if (type === 'book') {
+    const b = getBook(id);
+    deleteMessage.textContent = `Delete book "${b?.title}"? This cannot be undone.`;
   } else {
-    loginError.classList.remove('hidden');
-    codeInput.select();
+    const d = getDept(id);
+    deleteMessage.textContent = `Delete department "${d?.name}" and all its books? This cannot be undone.`;
   }
-}
-
-function logout() {
-  if (isEditing) {
-    forceSave();
-  }
-  setAuth(false);
-  isEditing = false;
-  draft = null;
-  clearTimeout(autoSaveTimer);
-  renderAuth();
-  renderList();
-  renderDoc();
-}
-
-// ---------- Delete modal ----------
-function openDeleteModal() {
   deleteModal.classList.remove('hidden');
 }
 
-function closeDeleteModal() {
+function confirmDelete() {
+  if (!pendingDelete) return;
+  const { type, id } = pendingDelete;
+  if (type === 'book') {
+    data.books = data.books.filter(b => b.id !== id);
+    saveData();
+    currentBookId = null;
+    isEditing = false;
+    showView('dept');
+  } else if (type === 'dept') {
+    data.books = data.books.filter(b => b.departmentId !== id);
+    data.departments = data.departments.filter(d => d.id !== id);
+    saveData();
+    currentDeptId = null;
+    showView('departments');
+  }
+  pendingDelete = null;
   deleteModal.classList.add('hidden');
 }
 
-// ---------- Event listeners ----------
-loginBtn.addEventListener('click', openLoginModal);
-logoutBtn.addEventListener('click', logout);
-newDocBtn.addEventListener('click', createDoc);
-editBtn.addEventListener('click', startEdit);
-saveBtn.addEventListener('click', saveEdit);
-cancelBtn.addEventListener('click', cancelEdit);
-deleteBtn.addEventListener('click', openDeleteModal);
-
-submitLoginBtn.addEventListener('click', submitLogin);
-cancelLoginBtn.addEventListener('click', closeLoginModal);
-codeInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') submitLogin();
-});
-
-confirmDeleteBtn.addEventListener('click', deleteCurrentDoc);
-cancelDeleteBtn.addEventListener('click', closeDeleteModal);
-
-// Close modals on backdrop click
-document.querySelectorAll('.modal-backdrop').forEach((el) => {
-  el.addEventListener('click', () => {
-    closeLoginModal();
-    closeDeleteModal();
+// ---------- Search ----------
+function runSearch(q) {
+  q = q.trim().toLowerCase();
+  if (!q) {
+    searchResults.classList.add('hidden');
+    return;
+  }
+  const results = [];
+  data.departments.forEach(d => {
+    if (d.name.toLowerCase().includes(q) || (d.description || '').toLowerCase().includes(q)) {
+      results.push({ type: 'dept', id: d.id, title: d.name, meta: 'Department' });
+    }
   });
+  data.books.forEach(b => {
+    const dept = getDept(b.departmentId);
+    if (
+      b.title.toLowerCase().includes(q) ||
+      (b.description || '').toLowerCase().includes(q) ||
+      (b.content || '').toLowerCase().includes(q)
+    ) {
+      results.push({
+        type: 'book',
+        id: b.id,
+        deptId: b.departmentId,
+        title: b.title,
+        meta: dept ? dept.name : 'Book'
+      });
+    }
+  });
+
+  if (results.length === 0) {
+    searchResults.innerHTML = `<div class="search-item"><div class="si-title">No results</div></div>`;
+  } else {
+    searchResults.innerHTML = results.slice(0, 12).map(r => `
+      <div class="search-item" data-type="${r.type}" data-id="${r.id}" data-deptid="${r.deptId || ''}">
+        <div class="si-title">${escapeHtml(r.title)}</div>
+        <div class="si-meta">${escapeHtml(r.meta)}</div>
+      </div>
+    `).join('');
+    searchResults.querySelectorAll('.search-item').forEach(el => {
+      el.addEventListener('click', () => {
+        searchResults.classList.add('hidden');
+        globalSearch.value = '';
+        if (el.dataset.type === 'dept') {
+          currentDeptId = el.dataset.id;
+          showView('dept');
+        } else {
+          currentDeptId = el.dataset.deptid;
+          currentBookId = el.dataset.id;
+          showView('book');
+        }
+      });
+    });
+  }
+  searchResults.classList.remove('hidden');
+}
+
+// ---------- Events ----------
+loginBtn.addEventListener('click', () => {
+  loginError.classList.add('hidden');
+  codeInput.value = '';
+  loginModal.classList.remove('hidden');
+  setTimeout(() => codeInput.focus(), 50);
+});
+logoutBtn.addEventListener('click', () => {
+  if (isEditing) forceSave();
+  setAuth(false);
+  isEditing = false;
+  renderAuth();
+  if (currentBookId) renderBookView();
+});
+$('#submitLoginBtn').addEventListener('click', () => {
+  if (codeInput.value.trim() === ACCESS_CODE) {
+    setAuth(true);
+    loginModal.classList.add('hidden');
+    renderAuth();
+  } else {
+    loginError.classList.remove('hidden');
+  }
+});
+$('#cancelLoginBtn').addEventListener('click', () => loginModal.classList.add('hidden'));
+codeInput.addEventListener('keydown', e => { if (e.key === 'Enter') $('#submitLoginBtn').click(); });
+
+logoBtn.addEventListener('click', () => showView('departments'));
+backToDepts.addEventListener('click', () => showView('departments'));
+backToDept.addEventListener('click', () => {
+  if (isEditing) forceSave();
+  isEditing = false;
+  showView('dept');
 });
 
-// Formatting toolbar buttons
+newDeptBtn.addEventListener('click', () => openDeptModal());
+editDeptBtn.addEventListener('click', () => {
+  if (currentDeptId) openDeptModal(currentDeptId);
+});
+$('#saveDeptBtn').addEventListener('click', saveDepartment);
+$('#cancelDeptBtn').addEventListener('click', () => deptModal.classList.add('hidden'));
+
+deptImageInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  tempDeptImage = await fileToBase64(file);
+  deptImagePreview.innerHTML = `<img src="${tempDeptImage}">`;
+  deptImagePreview.classList.remove('hidden');
+});
+
+newBookBtn.addEventListener('click', () => {
+  if (currentDeptId) openBookModal();
+});
+editBookBtn.addEventListener('click', () => {
+  if (currentBookId) {
+    if (isEditing) {
+      openBookModal(currentBookId);
+    } else {
+      startEditBook();
+    }
+  }
+});
+deleteBookBtn.addEventListener('click', () => {
+  if (currentBookId) requestDelete('book', currentBookId);
+});
+$('#saveBookMetaBtn').addEventListener('click', saveBookMeta);
+$('#cancelBookBtn').addEventListener('click', () => bookModal.classList.add('hidden'));
+
+bookCoverInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  tempBookCover = await fileToBase64(file);
+  bookCoverPreview.innerHTML = `<img src="${tempBookCover}">`;
+  bookCoverPreview.classList.remove('hidden');
+});
+
+$('#confirmDeleteBtn').addEventListener('click', confirmDelete);
+$('#cancelDeleteBtn').addEventListener('click', () => {
+  pendingDelete = null;
+  deleteModal.classList.add('hidden');
+});
+
 formatBar.addEventListener('click', (e) => {
   const btn = e.target.closest('.format-btn');
   if (!btn || !isEditing) return;
-
-  const cmd = btn.dataset.cmd;
-  const value = btn.dataset.value || null;
-
-  if (cmd === 'formatBlock') {
-    execFormat('formatBlock', value);
-  } else {
-    execFormat(cmd, value);
-  }
-});
-
-// Update active states when selection changes
-docContent.addEventListener('mouseup', updateFormatButtonStates);
-docContent.addEventListener('keyup', updateFormatButtonStates);
-docContent.addEventListener('focus', updateFormatButtonStates);
-
-// Auto-save triggers
-docContent.addEventListener('input', () => {
-  if (isEditing) scheduleAutoSave();
-});
-
-docTitle.addEventListener('input', () => {
-  if (isEditing) scheduleAutoSave();
-});
-
-// Keyboard shortcuts
-document.addEventListener('keydown', (e) => {
-  if (!isEditing) return;
-
-  const isMod = e.ctrlKey || e.metaKey;
-
-  // Ctrl/Cmd + S → force save (stay in edit mode)
-  if (isMod && e.key === 's') {
-    e.preventDefault();
-    forceSave();
+  if (btn.id === 'insertImageBtn') {
+    imageInput.click();
     return;
   }
+  const cmd = btn.dataset.cmd;
+  const val = btn.dataset.value || null;
+  if (cmd === 'formatBlock') execFormat('formatBlock', val);
+  else execFormat(cmd);
+});
 
-  // Formatting shortcuts
-  if (isMod && e.key === 'b') {
-    e.preventDefault();
-    execFormat('bold');
-  } else if (isMod && e.key === 'i') {
-    e.preventDefault();
-    execFormat('italic');
-  } else if (isMod && e.key === 'u') {
-    e.preventDefault();
-    execFormat('underline');
-  }
+imageInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file) insertImage(file);
+  imageInput.value = '';
+});
+
+bookContent.addEventListener('input', () => { if (isEditing) scheduleAutoSave(); });
+bookTitleInput.addEventListener('input', () => { if (isEditing) scheduleAutoSave(); });
+
+document.addEventListener('keydown', (e) => {
+  if (!isEditing) return;
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key === 's') { e.preventDefault(); forceSave(); }
+  if (mod && e.key === 'b') { e.preventDefault(); execFormat('bold'); }
+  if (mod && e.key === 'i') { e.preventDefault(); execFormat('italic'); }
+  if (mod && e.key === 'u') { e.preventDefault(); execFormat('underline'); }
+});
+
+globalSearch.addEventListener('input', () => runSearch(globalSearch.value));
+globalSearch.addEventListener('focus', () => {
+  if (globalSearch.value.trim()) runSearch(globalSearch.value);
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.search-wrap')) searchResults.classList.add('hidden');
+});
+
+$$('.modal-backdrop').forEach(el => {
+  el.addEventListener('click', () => {
+    loginModal.classList.add('hidden');
+    deptModal.classList.add('hidden');
+    bookModal.classList.add('hidden');
+    deleteModal.classList.add('hidden');
+  });
 });
 
 // ---------- Init ----------
 function init() {
-  loadDocs();
+  loadData();
   loadAuth();
   renderAuth();
-  renderList();
-  renderDoc();
-
-  // Seed a sample document if none exist
-  if (docs.length === 0) {
-    const sample = {
-      id: generateId(),
-      title: 'Welcome – Staff Handbook',
-      content: `
-        <h1>Staff Handbook</h1>
-        <p>Welcome to the staff documents portal.</p>
-        <h2>How to use this site</h2>
-        <ul>
-          <li>Everyone can <strong>view</strong> documents.</li>
-          <li>Staff members log in with the access code to create, edit or delete documents.</li>
-          <li>Click a document on the left to open it.</li>
-        </ul>
-        <h2>Editing features</h2>
-        <p>When editing you get a full formatting toolbar:</p>
-        <ul>
-          <li><b>Bold</b>, <i>Italic</i>, <u>Underline</u>, <s>Strikethrough</s></li>
-          <li>Headings (H1, H2, H3) and paragraph</li>
-          <li>Bullet and numbered lists</li>
-          <li>Text alignment</li>
-          <li>Undo / Redo</li>
-        </ul>
-        <p>Changes are <strong>auto-saved</strong> a couple of seconds after you stop typing.</p>
-        <p><em>You can safely delete this sample document once you are ready.</em></p>
-      `,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-    docs.push(sample);
-    saveDocs();
-    renderList();
-  }
+  showView('departments');
 }
 
 init();
