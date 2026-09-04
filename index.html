@@ -68,12 +68,67 @@
               <span id="docMeta" class="doc-meta"></span>
             </div>
             <div class="doc-actions">
+              <span id="saveStatus" class="save-status hidden"></span>
               <button id="editBtn" class="btn btn-sm btn-outline hidden">Edit</button>
               <button id="saveBtn" class="btn btn-sm btn-primary hidden">Save</button>
               <button id="cancelBtn" class="btn btn-sm btn-ghost hidden">Cancel</button>
               <button id="deleteBtn" class="btn btn-sm btn-danger hidden">Delete</button>
             </div>
           </div>
+
+          <!-- Formatting toolbar (only visible while editing) -->
+          <div id="formatBar" class="format-bar hidden">
+            <div class="format-group">
+              <button type="button" class="format-btn" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+              <button type="button" class="format-btn" data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+              <button type="button" class="format-btn" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+              <button type="button" class="format-btn" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>
+            </div>
+            <div class="format-divider"></div>
+            <div class="format-group">
+              <button type="button" class="format-btn" data-cmd="formatBlock" data-value="h1" title="Heading 1">H1</button>
+              <button type="button" class="format-btn" data-cmd="formatBlock" data-value="h2" title="Heading 2">H2</button>
+              <button type="button" class="format-btn" data-cmd="formatBlock" data-value="h3" title="Heading 3">H3</button>
+              <button type="button" class="format-btn" data-cmd="formatBlock" data-value="p" title="Paragraph">P</button>
+            </div>
+            <div class="format-divider"></div>
+            <div class="format-group">
+              <button type="button" class="format-btn" data-cmd="insertUnorderedList" title="Bullet list">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg>
+              </button>
+              <button type="button" class="format-btn" data-cmd="insertOrderedList" title="Numbered list">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><text x="2" y="8" font-size="8" fill="currentColor" stroke="none">1</text><text x="2" y="14" font-size="8" fill="currentColor" stroke="none">2</text><text x="2" y="20" font-size="8" fill="currentColor" stroke="none">3</text></svg>
+              </button>
+            </div>
+            <div class="format-divider"></div>
+            <div class="format-group">
+              <button type="button" class="format-btn" data-cmd="justifyLeft" title="Align left">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg>
+              </button>
+              <button type="button" class="format-btn" data-cmd="justifyCenter" title="Align center">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+              </button>
+              <button type="button" class="format-btn" data-cmd="justifyRight" title="Align right">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="6" y1="18" x2="21" y2="18"/></svg>
+              </button>
+            </div>
+            <div class="format-divider"></div>
+            <div class="format-group">
+              <button type="button" class="format-btn" data-cmd="undo" title="Undo (Ctrl+Z)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.72 3L3 13"/></svg>
+              </button>
+              <button type="button" class="format-btn" data-cmd="redo" title="Redo (Ctrl+Y)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6.72 3L21 13"/></svg>
+              </button>
+            </div>
+            <div class="format-divider"></div>
+            <div class="format-group">
+              <button type="button" class="format-btn" data-cmd="removeFormat" title="Clear formatting">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/><line x1="4" y1="20" x2="20" y2="4" stroke-width="1.5"/></svg>
+              </button>
+            </div>
+          </div>
+
           <div id="docContent" class="doc-content" contenteditable="false"></div>
         </div>
       </main>
