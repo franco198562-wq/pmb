@@ -1,7 +1,6 @@
 // ==============================
 // Staff Documentation Portal
 // Access code: PMB123
-// Departments → Books structure
 // ==============================
 
 const ACCESS_CODE = 'PMB123';
@@ -32,6 +31,7 @@ const logoutBtn = $('#logoutBtn');
 const newDeptBtn = $('#newDeptBtn');
 const newBookBtn = $('#newBookBtn');
 const editDeptBtn = $('#editDeptBtn');
+const deleteDeptBtn = $('#deleteDeptBtn');
 const editBookBtn = $('#editBookBtn');
 const deleteBookBtn = $('#deleteBookBtn');
 const backToDepts = $('#backToDepts');
@@ -157,6 +157,7 @@ function renderAuth() {
     newDeptBtn.classList.remove('hidden');
     newBookBtn.classList.remove('hidden');
     editDeptBtn.classList.remove('hidden');
+    deleteDeptBtn.classList.remove('hidden');
     editBookBtn.classList.remove('hidden');
     deleteBookBtn.classList.remove('hidden');
   } else {
@@ -165,6 +166,7 @@ function renderAuth() {
     newDeptBtn.classList.add('hidden');
     newBookBtn.classList.add('hidden');
     editDeptBtn.classList.add('hidden');
+    deleteDeptBtn.classList.add('hidden');
     editBookBtn.classList.add('hidden');
     deleteBookBtn.classList.add('hidden');
   }
@@ -532,7 +534,7 @@ function requestDelete(type, id) {
     deleteMessage.textContent = `Delete book "${b?.title}"? This cannot be undone.`;
   } else {
     const d = getDept(id);
-    deleteMessage.textContent = `Delete department "${d?.name}" and all its books? This cannot be undone.`;
+    deleteMessage.textContent = `Delete "${d?.name}" and all its books? This cannot be undone.`;
   }
   deleteModal.classList.remove('hidden');
 }
@@ -651,6 +653,9 @@ backToDept.addEventListener('click', () => {
 newDeptBtn.addEventListener('click', () => openDeptModal());
 editDeptBtn.addEventListener('click', () => {
   if (currentDeptId) openDeptModal(currentDeptId);
+});
+deleteDeptBtn.addEventListener('click', () => {
+  if (currentDeptId) requestDelete('dept', currentDeptId);
 });
 $('#saveDeptBtn').addEventListener('click', saveDepartment);
 $('#cancelDeptBtn').addEventListener('click', () => deptModal.classList.add('hidden'));
