@@ -295,8 +295,82 @@ body {
 
 .doc-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.save-status {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  margin-right: 4px;
+}
+
+.save-status.saving {
+  color: var(--primary);
+}
+
+.save-status.saved {
+  color: #16a34a;
+}
+
+/* Formatting toolbar */
+.format-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+}
+
+.format-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.format-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
+.format-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-family: inherit;
+  transition: background 0.12s, color 0.12s;
+}
+
+.format-btn:hover {
+  background: var(--bg);
+}
+
+.format-btn:active,
+.format-btn.active {
+  background: #eff6ff;
+  color: var(--primary);
+}
+
+.format-btn svg {
+  pointer-events: none;
 }
 
 .doc-content {
@@ -328,16 +402,19 @@ body {
 .doc-content h1, .doc-content h2, .doc-content h3 {
   margin: 1.2em 0 0.5em;
   font-weight: 600;
+  line-height: 1.3;
 }
-.doc-content h1 { font-size: 1.6rem; }
-.doc-content h2 { font-size: 1.3rem; }
-.doc-content h3 { font-size: 1.1rem; }
+.doc-content h1 { font-size: 1.75rem; }
+.doc-content h2 { font-size: 1.4rem; }
+.doc-content h3 { font-size: 1.15rem; }
 .doc-content p { margin-bottom: 0.8em; }
 .doc-content ul, .doc-content ol {
   margin: 0.8em 0;
   padding-left: 1.5em;
 }
 .doc-content li { margin-bottom: 0.3em; }
+.doc-content u { text-decoration: underline; }
+.doc-content s { text-decoration: line-through; }
 
 /* Modal */
 .modal {
@@ -423,6 +500,9 @@ body {
   }
   .doc-actions {
     justify-content: flex-end;
+  }
+  .format-bar {
+    padding: 6px 10px;
   }
 }
 
