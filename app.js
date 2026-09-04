@@ -1,11 +1,13 @@
 // ==============================
-// Staff Docs – simple localStorage app
+// Staff Docs – localStorage app
 // Access code: PMB123
+// Features: formatting toolbar + auto-save
 // ==============================
 
 const ACCESS_CODE = 'PMB123';
 const STORAGE_KEY = 'staff_docs_v1';
 const AUTH_KEY = 'staff_docs_auth';
+const AUTO_SAVE_DELAY = 1500; // ms after last change
 
 // ---------- State ----------
 let docs = [];
@@ -13,6 +15,8 @@ let currentId = null;
 let isEditing = false;
 let isLoggedIn = false;
 let draft = null; // { title, content } while editing
+let autoSaveTimer = null;
+let lastSavedSnapshot = null; // to avoid unnecessary saves
 
 // ---------- DOM ----------
 const $ = (sel) => document.querySelector(sel);
@@ -30,6 +34,8 @@ const editBtn = $('#editBtn');
 const saveBtn = $('#saveBtn');
 const cancelBtn = $('#cancelBtn');
 const deleteBtn = $('#deleteBtn');
+const formatBar = $('#formatBar');
+const saveStatus = $('#saveStatus');
 const loginModal = $('#loginModal');
 const codeInput = $('#codeInput');
 const loginError = $('#loginError');
@@ -85,6 +91,116 @@ function getCurrentDoc() {
   return docs.find((d) => d.id === currentId) || null;
 }
 
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ---------- Auto-save ----------
+function showSaveStatus(text, className = '') {
+  saveStatus.textContent = text;
+  saveStatus.className = 'save-status ' + className;
+  saveStatus.classList.remove('hidden');
+}
+
+function hideSaveStatus() {
+  saveStatus.classList.add('hidden');
+}
+
+function getCurrentSnapshot() {
+  return {
+    title: docTitle.value.trim() || 'Untitled',
+    content: docContent.innerHTML,
+  };
+}
+
+function scheduleAutoSave() {
+  if (!isEditing || !isLoggedIn) return;
+
+  clearTimeout(autoSaveTimer);
+  showSaveStatus('Saving…', 'saving');
+
+  autoSaveTimer = setTimeout(() => {
+    performAutoSave();
+  }, AUTO_SAVE_DELAY);
+}
+
+function performAutoSave() {
+  if (!isEditing || !currentId || !isLoggedIn) return;
+
+  const snapshot = getCurrentSnapshot();
+  const snapshotStr = JSON.stringify(snapshot);
+
+  // Skip if nothing changed
+  if (snapshotStr === lastSavedSnapshot) {
+    showSaveStatus('Saved', 'saved');
+    setTimeout(hideSaveStatus, 2000);
+    return;
+  }
+
+  const doc = getCurrentDoc();
+  if (!doc) return;
+
+  doc.title = snapshot.title;
+  doc.content = snapshot.content;
+  doc.updatedAt = Date.now();
+
+  saveDocs();
+  lastSavedSnapshot = snapshotStr;
+
+  // Keep draft in sync
+  draft = { ...snapshot };
+
+  docMeta.textContent = `Last updated: ${formatDate(doc.updatedAt)}`;
+  renderList(); // update title in sidebar
+
+  showSaveStatus('Saved', 'saved');
+  setTimeout(hideSaveStatus, 2500);
+}
+
+function forceSave() {
+  clearTimeout(autoSaveTimer);
+  performAutoSave();
+}
+
+// ---------- Formatting ----------
+function execFormat(command, value = null) {
+  // Focus the editor first so the command applies to the selection
+  docContent.focus();
+  try {
+    document.execCommand(command, false, value);
+  } catch (e) {
+    console.warn('Format command failed:', command, e);
+  }
+  // Trigger auto-save after formatting
+  scheduleAutoSave();
+  updateFormatButtonStates();
+}
+
+function updateFormatButtonStates() {
+  if (!isEditing) return;
+
+  document.querySelectorAll('.format-btn').forEach((btn) => {
+    const cmd = btn.dataset.cmd;
+    let isActive = false;
+
+    try {
+      if (cmd === 'formatBlock') {
+        const value = btn.dataset.value;
+        const block = document.queryCommandValue('formatBlock').toLowerCase();
+        isActive = block === value || block === value.toUpperCase();
+      } else if (['bold', 'italic', 'underline', 'strikeThrough', 'insertUnorderedList', 'insertOrderedList', 'justifyLeft', 'justifyCenter', 'justifyRight'].includes(cmd)) {
+        isActive = document.queryCommandState(cmd);
+      }
+    } catch {
+      // ignore
+    }
+
+    btn.classList.toggle('active', isActive);
+  });
+}
+
 // ---------- Render ----------
 function renderAuth() {
   if (isLoggedIn) {
@@ -96,12 +212,12 @@ function renderAuth() {
     logoutBtn.classList.add('hidden');
     newDocBtn.classList.add('hidden');
   }
-  // Update action buttons visibility based on current view + auth
   updateActionButtons();
 }
 
 function updateActionButtons() {
   const hasDoc = !!currentId;
+
   if (!hasDoc || isEditing) {
     editBtn.classList.add('hidden');
     deleteBtn.classList.add('hidden');
@@ -118,9 +234,12 @@ function updateActionButtons() {
   if (isEditing) {
     saveBtn.classList.remove('hidden');
     cancelBtn.classList.remove('hidden');
+    formatBar.classList.remove('hidden');
   } else {
     saveBtn.classList.add('hidden');
     cancelBtn.classList.add('hidden');
+    formatBar.classList.add('hidden');
+    hideSaveStatus();
   }
 }
 
@@ -132,7 +251,6 @@ function renderList() {
   }
   emptyState.classList.add('hidden');
 
-  // Sort newest first
   const sorted = [...docs].sort((a, b) => b.updatedAt - a.updatedAt);
 
   sorted.forEach((doc) => {
@@ -149,12 +267,6 @@ function renderList() {
     item.addEventListener('click', () => selectDoc(doc.id));
     docList.appendChild(item);
   });
-}
-
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
 }
 
 function renderDoc() {
@@ -187,10 +299,14 @@ function renderDoc() {
 // ---------- Actions ----------
 function selectDoc(id) {
   if (isEditing) {
-    // Simple: cancel edit if switching
-    cancelEdit();
+    // Auto-save before switching
+    forceSave();
+    isEditing = false;
+    draft = null;
+    clearTimeout(autoSaveTimer);
   }
   currentId = id;
+  lastSavedSnapshot = null;
   renderList();
   renderDoc();
 }
@@ -198,36 +314,31 @@ function selectDoc(id) {
 function startEdit() {
   const doc = getCurrentDoc();
   if (!doc || !isLoggedIn) return;
+
   isEditing = true;
   draft = {
     title: doc.title,
     content: doc.content,
   };
+  lastSavedSnapshot = JSON.stringify(draft);
   renderDoc();
   docTitle.focus();
 }
 
 function cancelEdit() {
+  clearTimeout(autoSaveTimer);
   isEditing = false;
   draft = null;
+  lastSavedSnapshot = null;
+  hideSaveStatus();
   renderDoc();
 }
 
 function saveEdit() {
-  const doc = getCurrentDoc();
-  if (!doc || !isLoggedIn) return;
-
-  const title = docTitle.value.trim() || 'Untitled';
-  const content = docContent.innerHTML;
-
-  doc.title = title;
-  doc.content = content;
-  doc.updatedAt = Date.now();
-
-  saveDocs();
+  // Manual save button – force immediate save and exit edit mode
+  forceSave();
   isEditing = false;
   draft = null;
-  renderList();
   renderDoc();
 }
 
@@ -246,6 +357,7 @@ function createDoc() {
   currentId = newDoc.id;
   isEditing = true;
   draft = { title: newDoc.title, content: newDoc.content };
+  lastSavedSnapshot = JSON.stringify(draft);
   renderList();
   renderDoc();
   docTitle.focus();
@@ -254,11 +366,13 @@ function createDoc() {
 
 function deleteCurrentDoc() {
   if (!currentId || !isLoggedIn) return;
+  clearTimeout(autoSaveTimer);
   docs = docs.filter((d) => d.id !== currentId);
   saveDocs();
   currentId = null;
   isEditing = false;
   draft = null;
+  lastSavedSnapshot = null;
   renderList();
   renderDoc();
   closeDeleteModal();
@@ -291,8 +405,13 @@ function submitLogin() {
 }
 
 function logout() {
+  if (isEditing) {
+    forceSave();
+  }
   setAuth(false);
-  if (isEditing) cancelEdit();
+  isEditing = false;
+  draft = null;
+  clearTimeout(autoSaveTimer);
   renderAuth();
   renderList();
   renderDoc();
@@ -333,11 +452,58 @@ document.querySelectorAll('.modal-backdrop').forEach((el) => {
   });
 });
 
-// Keyboard shortcut: Ctrl/Cmd + S to save while editing
+// Formatting toolbar buttons
+formatBar.addEventListener('click', (e) => {
+  const btn = e.target.closest('.format-btn');
+  if (!btn || !isEditing) return;
+
+  const cmd = btn.dataset.cmd;
+  const value = btn.dataset.value || null;
+
+  if (cmd === 'formatBlock') {
+    execFormat('formatBlock', value);
+  } else {
+    execFormat(cmd, value);
+  }
+});
+
+// Update active states when selection changes
+docContent.addEventListener('mouseup', updateFormatButtonStates);
+docContent.addEventListener('keyup', updateFormatButtonStates);
+docContent.addEventListener('focus', updateFormatButtonStates);
+
+// Auto-save triggers
+docContent.addEventListener('input', () => {
+  if (isEditing) scheduleAutoSave();
+});
+
+docTitle.addEventListener('input', () => {
+  if (isEditing) scheduleAutoSave();
+});
+
+// Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 's' && isEditing) {
+  if (!isEditing) return;
+
+  const isMod = e.ctrlKey || e.metaKey;
+
+  // Ctrl/Cmd + S → force save (stay in edit mode)
+  if (isMod && e.key === 's') {
     e.preventDefault();
-    saveEdit();
+    forceSave();
+    return;
+  }
+
+  // Formatting shortcuts
+  if (isMod && e.key === 'b') {
+    e.preventDefault();
+    execFormat('bold');
+  } else if (isMod && e.key === 'i') {
+    e.preventDefault();
+    execFormat('italic');
+  } else if (isMod && e.key === 'u') {
+    e.preventDefault();
+    execFormat('underline');
   }
 });
 
@@ -349,7 +515,7 @@ function init() {
   renderList();
   renderDoc();
 
-  // Seed a sample document if none exist (first visit)
+  // Seed a sample document if none exist
   if (docs.length === 0) {
     const sample = {
       id: generateId(),
@@ -363,8 +529,16 @@ function init() {
           <li>Staff members log in with the access code to create, edit or delete documents.</li>
           <li>Click a document on the left to open it.</li>
         </ul>
-        <h2>Getting started</h2>
-        <p>Log in using the button in the top right, then click the <strong>+</strong> button to create your first real handbook or policy document.</p>
+        <h2>Editing features</h2>
+        <p>When editing you get a full formatting toolbar:</p>
+        <ul>
+          <li><b>Bold</b>, <i>Italic</i>, <u>Underline</u>, <s>Strikethrough</s></li>
+          <li>Headings (H1, H2, H3) and paragraph</li>
+          <li>Bullet and numbered lists</li>
+          <li>Text alignment</li>
+          <li>Undo / Redo</li>
+        </ul>
+        <p>Changes are <strong>auto-saved</strong> a couple of seconds after you stop typing.</p>
         <p><em>You can safely delete this sample document once you are ready.</em></p>
       `,
       createdAt: Date.now(),
