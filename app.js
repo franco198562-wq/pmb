@@ -84,7 +84,7 @@ const deleteMessage = $('#deleteMessage');
 const imageInput = $('#imageInput');
 
 // ---------- Shared Storage ----------
-const API_BASE = '/api';
+const API_BASE = 'https://pmb.franco198562.workers.dev/api';
 
 async function loadData() {
   try {
