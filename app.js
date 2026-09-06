@@ -89,15 +89,36 @@ const API_BASE = 'https://pmb.franco198562.workers.dev/api';
 async function loadData() {
   try {
     const response = await fetch(`${API_BASE}/data`, { cache: 'no-store' });
-    if (!response.ok) throw new Error(`Load failed: ${response.status}`);
+
+    if (!response.ok) {
+      throw new Error(`Load failed: ${response.status}`);
+    }
+
     const remoteData = await response.json();
-    data = remoteData && typeof remoteData === 'object' ? remoteData : {};
-    if (!Array.isArray(data.departments)) data.departments = [];
-    if (!Array.isArray(data.books)) data.books = [];
+
+    data = remoteData && typeof remoteData === 'object'
+      ? remoteData
+      : {};
+
+    if (!Array.isArray(data.departments)) {
+      data.departments = [];
+    }
+
+    if (!Array.isArray(data.books)) {
+      data.books = [];
+    }
+
   } catch (error) {
     console.error('Shared data load failed:', error);
-    data = { departments: [], books: [] };
-    alert('Unable to load shared data. Check that the Cloudflare Worker is deployed and /api is routed to it.');
+
+    data = {
+      departments: [],
+      books: []
+    };
+
+    alert(
+      'Unable to load shared data. Check that the Cloudflare Worker is deployed and /api is routed to it.'
+    );
   }
 }
 
@@ -105,14 +126,25 @@ async function saveData() {
   try {
     const response = await fetch(`${API_BASE}/data`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify(data)
     });
-    if (!response.ok) throw new Error(`Save failed: ${response.status}`);
+
+    if (!response.ok) {
+      throw new Error(`Save failed: ${response.status}`);
+    }
+
     return true;
+
   } catch (error) {
     console.error('Shared data save failed:', error);
-    alert('Unable to save shared data. Check that the Cloudflare Worker is deployed and /api is routed to it.');
+
+    alert(
+      'Unable to save shared data. Check that the Cloudflare Worker is deployed and /api is routed to it.'
+    );
+
     return false;
   }
 }
@@ -123,8 +155,12 @@ function loadAuth() {
 
 function setAuth(v) {
   isLoggedIn = v;
-  if (v) localStorage.setItem(AUTH_KEY, '1');
-  else localStorage.removeItem(AUTH_KEY);
+
+  if (v) {
+    localStorage.setItem(AUTH_KEY, '1');
+  } else {
+    localStorage.removeItem(AUTH_KEY);
+  }
 }
 
 // ---------- Helpers ----------
@@ -134,8 +170,11 @@ function uid() {
 
 function formatDate(ts) {
   return new Date(ts).toLocaleString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit'
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
   });
 }
 
@@ -154,7 +193,8 @@ function getBook(id) {
 }
 
 function booksInDept(deptId) {
-  return data.books.filter(b => b.departmentId === deptId)
+  return data.books
+    .filter(b => b.departmentId === deptId)
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
@@ -165,11 +205,16 @@ function isAdmin() {
 function markDirty() {
   saveStatus.textContent = 'Unsaved changes';
   saveStatus.classList.remove('saved');
+
   clearTimeout(autoSaveTimer);
+
   autoSaveTimer = setTimeout(async () => {
-    await saveData();
-    saveStatus.textContent = 'Saved';
-    saveStatus.classList.add('saved');
+    const success = await saveData();
+
+    if (success) {
+      saveStatus.textContent = 'Saved';
+      saveStatus.classList.add('saved');
+    }
   }, AUTO_SAVE_DELAY);
 }
 
@@ -203,18 +248,32 @@ function showView(view) {
 }
 
 function updateSidebar() {
-  sidebarHome.classList.toggle('active', !currentDeptId && !currentBookId);
-  sidebarDept.classList.toggle('active', !!currentDeptId && !currentBookId);
-  sidebarBook.classList.toggle('active', !!currentBookId);
+  sidebarHome.classList.toggle(
+    'active',
+    !currentDeptId && !currentBookId
+  );
+
+  sidebarDept.classList.toggle(
+    'active',
+    !!currentDeptId && !currentBookId
+  );
+
+  sidebarBook.classList.toggle(
+    'active',
+    !!currentBookId
+  );
 }
 
 function renderAuth() {
   loginBtn.classList.toggle('hidden', isLoggedIn);
   logoutBtn.classList.toggle('hidden', !isLoggedIn);
+
   newDeptBtn.classList.toggle('hidden', !isAdmin());
   newBookBtn.classList.toggle('hidden', !isAdmin());
+
   editDeptBtn.classList.toggle('hidden', !isAdmin());
   deleteDeptBtn.classList.toggle('hidden', !isAdmin());
+
   editBookBtn.classList.toggle('hidden', !isAdmin());
   deleteBookBtn.classList.toggle('hidden', !isAdmin());
 }
@@ -231,6 +290,7 @@ function renderDepartments() {
 
   departments.forEach(dept => {
     const card = document.createElement('button');
+
     card.className = 'dept-card';
     card.type = 'button';
 
@@ -258,6 +318,7 @@ function renderDepartments() {
 
 function renderDeptDetail() {
   const dept = getDept(currentDeptId);
+
   if (!dept) {
     showView('departments');
     return;
@@ -268,11 +329,13 @@ function renderDeptDetail() {
   deptBreadcrumb.textContent = dept.name;
 
   const books = booksInDept(dept.id);
+
   bookGrid.innerHTML = '';
   bookEmpty.classList.toggle('hidden', books.length > 0);
 
   books.forEach(book => {
     const card = document.createElement('button');
+
     card.className = 'book-card';
     card.type = 'button';
 
@@ -300,12 +363,14 @@ function renderDeptDetail() {
 
 function renderBook() {
   const book = getBook(currentBookId);
+
   if (!book) {
     showView('departments');
     return;
   }
 
   const dept = getDept(book.departmentId);
+
   bookBreadcrumb.textContent = dept ? dept.name : 'Department';
   bookTitleInput.value = book.name || '';
   bookDescDisplay.textContent = book.description || '';
@@ -324,6 +389,7 @@ function setEditing(v) {
 
   bookTitleInput.readOnly = !v;
   bookContent.contentEditable = v ? 'true' : 'false';
+
   bookDescDisplay.classList.toggle('hidden', v);
   formatBar.classList.toggle('hidden', !v);
   metaBox.classList.toggle('hidden', v);
@@ -335,6 +401,7 @@ function setEditing(v) {
 
 function refreshCurrentBook() {
   const book = getBook(currentBookId);
+
   if (!book) return;
 
   book.name = bookTitleInput.value.trim() || 'Untitled Book';
@@ -356,8 +423,10 @@ function renderSearchResults(query) {
   const results = [];
 
   data.departments.forEach(dept => {
-    if ((dept.name || '').toLowerCase().includes(q) ||
-        (dept.description || '').toLowerCase().includes(q)) {
+    if (
+      (dept.name || '').toLowerCase().includes(q) ||
+      (dept.description || '').toLowerCase().includes(q)
+    ) {
       results.push({
         type: 'Department',
         name: dept.name,
@@ -367,8 +436,10 @@ function renderSearchResults(query) {
   });
 
   data.books.forEach(book => {
-    if ((book.name || '').toLowerCase().includes(q) ||
-        (book.description || '').toLowerCase().includes(q)) {
+    if (
+      (book.name || '').toLowerCase().includes(q) ||
+      (book.description || '').toLowerCase().includes(q)
+    ) {
       results.push({
         type: 'Book',
         name: book.name,
@@ -378,12 +449,15 @@ function renderSearchResults(query) {
   });
 
   if (!results.length) {
-    searchResults.innerHTML = '<div class="search-empty">No results found</div>';
+    searchResults.innerHTML =
+      '<div class="search-empty">No results found</div>';
   } else {
     results.slice(0, 10).forEach(result => {
       const item = document.createElement('button');
+
       item.className = 'search-result';
       item.type = 'button';
+
       item.innerHTML = `
         <span class="search-result-type">${result.type}</span>
         <strong>${escapeHtml(result.name)}</strong>
@@ -395,12 +469,14 @@ function renderSearchResults(query) {
           showView('dept');
         } else {
           const book = getBook(result.id);
+
           if (book) {
             currentDeptId = book.departmentId;
             currentBookId = book.id;
             showView('book');
           }
         }
+
         searchResults.classList.add('hidden');
         globalSearch.value = '';
       });
@@ -459,13 +535,17 @@ codeInput.addEventListener('keydown', e => {
 
 // ---------- Navigation ----------
 logoBtn.addEventListener('click', () => showView('departments'));
+
 backToDepts.addEventListener('click', () => showView('departments'));
+
 backToDept.addEventListener('click', () => showView('dept'));
 
 sidebarHome.addEventListener('click', () => showView('departments'));
+
 sidebarDept.addEventListener('click', () => {
   if (currentDeptId) showView('dept');
 });
+
 sidebarBook.addEventListener('click', () => {
   if (currentBookId) showView('book');
 });
@@ -473,7 +553,11 @@ sidebarBook.addEventListener('click', () => {
 // ---------- Department Modals ----------
 function openDeptModal(dept = null) {
   editingDeptId = dept ? dept.id : null;
-  deptModalTitle.textContent = dept ? 'Edit Department' : 'New Department';
+
+  deptModalTitle.textContent = dept
+    ? 'Edit Department'
+    : 'New Department';
+
   deptNameInput.value = dept ? dept.name : '';
   deptDescInput.value = dept ? dept.description : '';
   tempDeptImage = dept ? dept.image : null;
@@ -490,27 +574,35 @@ newDeptBtn.addEventListener('click', () => openDeptModal());
 
 editDeptBtn.addEventListener('click', () => {
   const dept = getDept(currentDeptId);
+
   if (dept) openDeptModal(dept);
 });
 
 deptImageInput.addEventListener('change', () => {
   const file = deptImageInput.files[0];
+
   if (!file) return;
 
   const reader = new FileReader();
+
   reader.onload = e => {
     tempDeptImage = e.target.result;
-    deptImagePreview.innerHTML = `<img src="${escapeHtml(tempDeptImage)}" alt="">`;
+
+    deptImagePreview.innerHTML =
+      `<img src="${escapeHtml(tempDeptImage)}" alt="">`;
   };
+
   reader.readAsDataURL(file);
 });
 
 $('#deptSave').addEventListener('click', async () => {
   const name = deptNameInput.value.trim();
+
   if (!name) return;
 
   if (editingDeptId) {
     const dept = getDept(editingDeptId);
+
     if (dept) {
       dept.name = name;
       dept.description = deptDescInput.value.trim();
@@ -528,7 +620,10 @@ $('#deptSave').addEventListener('click', async () => {
     });
   }
 
-  await saveData();
+  const success = await saveData();
+
+  if (!success) return;
+
   deptModal.classList.add('hidden');
   renderDepartments();
 
@@ -542,7 +637,11 @@ $('#deptCancel').addEventListener('click', () => {
 // ---------- Book Modals ----------
 function openBookModal(book = null) {
   editingBookId = book ? book.id : null;
-  bookModalTitle.textContent = book ? 'Edit Book' : 'New Book';
+
+  bookModalTitle.textContent = book
+    ? 'Edit Book'
+    : 'New Book';
+
   bookNameInput.value = book ? book.name : '';
   bookDescInput.value = book ? book.description : '';
   tempBookCover = book ? book.cover : null;
@@ -557,32 +656,41 @@ function openBookModal(book = null) {
 
 newBookBtn.addEventListener('click', () => {
   if (!currentDeptId) return;
+
   openBookModal();
 });
 
 editBookBtn.addEventListener('click', () => {
   const book = getBook(currentBookId);
+
   if (book) openBookModal(book);
 });
 
 bookCoverInput.addEventListener('change', () => {
   const file = bookCoverInput.files[0];
+
   if (!file) return;
 
   const reader = new FileReader();
+
   reader.onload = e => {
     tempBookCover = e.target.result;
-    bookCoverPreview.innerHTML = `<img src="${escapeHtml(tempBookCover)}" alt="">`;
+
+    bookCoverPreview.innerHTML =
+      `<img src="${escapeHtml(tempBookCover)}" alt="">`;
   };
+
   reader.readAsDataURL(file);
 });
 
 $('#bookSave').addEventListener('click', async () => {
   const name = bookNameInput.value.trim();
+
   if (!name || !currentDeptId) return;
 
   if (editingBookId) {
     const book = getBook(editingBookId);
+
     if (book) {
       book.name = name;
       book.description = bookDescInput.value.trim();
@@ -605,7 +713,10 @@ $('#bookSave').addEventListener('click', async () => {
     currentBookId = newBook.id;
   }
 
-  await saveData();
+  const success = await saveData();
+
+  if (!success) return;
+
   bookModal.classList.add('hidden');
   renderDeptDetail();
 
@@ -624,34 +735,54 @@ function openDeleteModal(type, id) {
     ? getDept(id)
     : getBook(id);
 
-  deleteMessage.textContent = `Are you sure you want to delete "${item ? item.name : ''}"?`;
+  deleteMessage.textContent =
+    `Are you sure you want to delete "${item ? item.name : ''}"?`;
+
   deleteModal.classList.remove('hidden');
 }
 
 deleteDeptBtn.addEventListener('click', () => {
-  if (currentDeptId) openDeleteModal('department', currentDeptId);
+  if (currentDeptId) {
+    openDeleteModal('department', currentDeptId);
+  }
 });
 
 deleteBookBtn.addEventListener('click', () => {
-  if (currentBookId) openDeleteModal('book', currentBookId);
+  if (currentBookId) {
+    openDeleteModal('book', currentBookId);
+  }
 });
 
 $('#deleteConfirm').addEventListener('click', async () => {
   if (!pendingDelete) return;
 
   if (pendingDelete.type === 'department') {
-    data.departments = data.departments.filter(d => d.id !== pendingDelete.id);
-    data.books = data.books.filter(b => b.departmentId !== pendingDelete.id);
+    data.departments = data.departments.filter(
+      d => d.id !== pendingDelete.id
+    );
+
+    data.books = data.books.filter(
+      b => b.departmentId !== pendingDelete.id
+    );
+
     currentDeptId = null;
     currentBookId = null;
+
     showView('departments');
   } else {
-    data.books = data.books.filter(b => b.id !== pendingDelete.id);
+    data.books = data.books.filter(
+      b => b.id !== pendingDelete.id
+    );
+
     currentBookId = null;
+
     showView('dept');
   }
 
-  await saveData();
+  const success = await saveData();
+
+  if (!success) return;
+
   deleteModal.classList.add('hidden');
   pendingDelete = null;
 });
@@ -662,13 +793,9 @@ $('#deleteCancel').addEventListener('click', () => {
 });
 
 // ---------- Book Editing ----------
-editBookBtn.addEventListener('click', () => {
-  const book = getBook(currentBookId);
-  if (book) openBookModal(book);
-});
-
 $('#bookEdit').addEventListener('click', () => {
   if (!isAdmin()) return;
+
   setEditing(true);
 });
 
@@ -676,13 +803,17 @@ $('#bookSaveContent').addEventListener('click', async () => {
   if (!currentBookId) return;
 
   const book = getBook(currentBookId);
+
   if (!book) return;
 
   book.name = bookTitleInput.value.trim() || 'Untitled Book';
   book.content = bookContent.innerHTML;
   book.updatedAt = Date.now();
 
-  await saveData();
+  const success = await saveData();
+
+  if (!success) return;
+
   setEditing(false);
   renderBook();
 });
@@ -698,6 +829,7 @@ bookContent.addEventListener('input', () => {
 // ---------- Formatting ----------
 function execFormat(command, value = null) {
   if (!isEditing) return;
+
   document.execCommand(command, false, value);
   bookContent.focus();
   refreshCurrentBook();
@@ -711,12 +843,15 @@ formatBar.querySelectorAll('[data-command]').forEach(btn => {
 
 imageInput.addEventListener('change', () => {
   const file = imageInput.files[0];
+
   if (!file) return;
 
   const reader = new FileReader();
+
   reader.onload = e => {
     execFormat('insertImage', e.target.result);
   };
+
   reader.readAsDataURL(file);
 });
 
@@ -724,19 +859,38 @@ document.addEventListener('keydown', e => {
   if (!isEditing) return;
 
   const mod = e.ctrlKey || e.metaKey;
-  if (mod && e.key === 'b') { e.preventDefault(); execFormat('bold'); }
-  if (mod && e.key === 'i') { e.preventDefault(); execFormat('italic'); }
-  if (mod && e.key === 'u') { e.preventDefault(); execFormat('underline'); }
+
+  if (mod && e.key === 'b') {
+    e.preventDefault();
+    execFormat('bold');
+  }
+
+  if (mod && e.key === 'i') {
+    e.preventDefault();
+    execFormat('italic');
+  }
+
+  if (mod && e.key === 'u') {
+    e.preventDefault();
+    execFormat('underline');
+  }
 });
 
 // ---------- Search ----------
-globalSearch.addEventListener('input', () => renderSearchResults(globalSearch.value));
+globalSearch.addEventListener('input', () => {
+  renderSearchResults(globalSearch.value);
+});
+
 globalSearch.addEventListener('focus', () => {
-  if (globalSearch.value.trim()) renderSearchResults(globalSearch.value);
+  if (globalSearch.value.trim()) {
+    renderSearchResults(globalSearch.value);
+  }
 });
 
 document.addEventListener('click', e => {
-  if (!e.target.closest('.search-wrap')) searchResults.classList.add('hidden');
+  if (!e.target.closest('.search-wrap')) {
+    searchResults.classList.add('hidden');
+  }
 });
 
 // ---------- Modal Backdrops ----------
