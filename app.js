@@ -413,6 +413,7 @@ function renderSearchResults(query) {
 }
 
 // ---------- Login ----------
+
 loginBtn.addEventListener('click', () => {
   loginModal.classList.remove('hidden');
   codeInput.value = '';
@@ -426,18 +427,34 @@ logoutBtn.addEventListener('click', () => {
   setEditing(false);
 });
 
-$('#loginSubmit').addEventListener('click', () => {
-  if (codeInput.value === ACCESS_CODE) {
+function submitLogin() {
+  const enteredCode = codeInput.value.trim();
+
+  if (enteredCode === ACCESS_CODE) {
     setAuth(true);
     loginModal.classList.add('hidden');
+    loginError.textContent = '';
     renderAuth();
+
+    console.log('Staff login successful');
   } else {
     loginError.textContent = 'Incorrect access code.';
+    codeInput.focus();
+
+    console.log('Incorrect access code entered');
   }
+}
+
+$('#loginSubmit').addEventListener('click', (e) => {
+  e.preventDefault();
+  submitLogin();
 });
 
 codeInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter') $('#loginSubmit').click();
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    submitLogin();
+  }
 });
 
 // ---------- Navigation ----------
