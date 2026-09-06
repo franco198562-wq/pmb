@@ -1,8 +1,13 @@
-name = "pmb-api"
+name = "pmb"
 main = "worker.js"
 compatibility_date = "2026-09-06"
+
+[assets]
+directory = "."
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
 
 [[d1_databases]]
 binding = "DB"
 database_name = "pmb"
-database_id = "36064cd7-418b-4f0a-99d6-ce50945b51c9"
+database_id = "36064cd7-418b-4f0a-99d6-ce50945b51c9
