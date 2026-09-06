@@ -31,6 +31,7 @@ export default {
 
     const url = new URL(request.url);
 
+    // ---------- Shared data API ----------
     if (url.pathname === "/api/data" && request.method === "GET") {
       const row = await env.DB
         .prepare("SELECT data FROM site_data WHERE id = 1")
@@ -93,6 +94,7 @@ export default {
       return json({ success: true, data });
     }
 
-    return json({ error: "Not found" }, 404);
+    // ---------- Website ----------
+    return env.ASSETS.fetch(request);
   },
 };
